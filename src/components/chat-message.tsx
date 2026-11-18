@@ -21,6 +21,7 @@ function cellText(value: unknown) {
 }
 
 const intentLabels: Record<string, string> = {
+  assistant_info: "دربارهٔ داده‌یار",
   seat_release: "برنامه واگذاری با کنترل ظرفیت",
   count: "شمارش",
   sum: "جمع",
@@ -122,7 +123,7 @@ export function ChatMessage({ message, onCitation, busy, onSeatApply }: MessageP
       {response && <>
         {response.plan?.intent === "seat_release"
           ? <SeatAnalysis report={response.result as SeatReport} busy={busy} onApply={onSeatApply} />
-          : response.plan?.intent !== "table_answer" && <ResultView result={response.result} />}
+          : !["table_answer", "summarize", "assistant_info"].includes(response.plan?.intent ?? "") && <ResultView result={response.result} />}
         {response.note && response.answer !== response.note && <p className="message-note">{response.note}</p>}
         {!!response.citations.length && <div className="citation-list"><span>منابع</span>{response.citations.slice(0, 6).map((citation, index) => <button key={`${citation.sourceId}-${citation.rowNumber}-${index}`} onClick={() => onCitation(citation.sourceId)}>
           <FileText size={13} />{citation.sourceName}{citation.sheet ? ` · ${citation.sheet}` : ""}{citation.rowNumber ? ` · ردیف ${citation.rowNumber.toLocaleString("fa-IR")}` : ""}{citation.sectionNumber ? ` · بخش ${citation.sectionNumber.toLocaleString("fa-IR")}` : ""}{citation.matchedRows ? ` · ${citation.matchedRows.toLocaleString("fa-IR")} ردیف` : ""}

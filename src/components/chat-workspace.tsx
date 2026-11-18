@@ -40,7 +40,7 @@ export function ChatWorkspace({ sources, selectedIds, statusMessage, cloudModel,
   function submitQuestion(value = question, ids = selectedIds, mappings?: SeatMappings) {
     const clean = value.trim();
     if (!clean || sending) return;
-    if (!ids.length) {
+    if (!ids.length && !/^(?:(?:تو|شما|خودت)\s+)?(?:کی|چه کسی)\s+هستی[؟?!.،\s]*$|^(?:خودت\s+را\s+معرفی\s+کن|خودتو\s+معرفی\s+کن)[؟?!.،\s]*$/u.test(clean.replace(/[يى]/g, "ی"))) {
       setError("برای شروع، دست‌کم یک فایل را از فهرست منابع انتخاب کنید.");
       return;
     }
@@ -103,8 +103,8 @@ export function ChatWorkspace({ sources, selectedIds, statusMessage, cloudModel,
     <footer className="composer-area">
       {!!error && <div className="composer-error">{error}</div>}
       <form className="composer" onSubmit={handleSubmit}>
-        <textarea ref={textareaRef} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); handleSubmit(event as unknown as FormEvent<HTMLFormElement>); } }} placeholder={selected.length ? "سؤالتان را دربارهٔ فایل‌های انتخاب‌شده بنویسید…" : "ابتدا یک فایل را از فهرست منابع انتخاب کنید"} rows={1} aria-label="متن سؤال" />
-        <div className="composer-bottom"><span>Enter برای ارسال · Shift + Enter برای خط جدید</span><button type="submit" disabled={!question.trim() || sending || !selected.length} aria-label="ارسال سؤال"><ArrowUp size={18} /></button></div>
+        <textarea ref={textareaRef} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); handleSubmit(event as unknown as FormEvent<HTMLFormElement>); } }} placeholder={selected.length ? "سؤالتان را دربارهٔ فایل‌های انتخاب‌شده بنویسید…" : "خودتان را معرفی کنید یا برای تحلیل یک فایل انتخاب کنید"} rows={1} aria-label="متن سؤال" />
+        <div className="composer-bottom"><span>Enter برای ارسال · Shift + Enter برای خط جدید</span><button type="submit" disabled={!question.trim() || sending} aria-label="ارسال سؤال"><ArrowUp size={18} /></button></div>
       </form>
       <p className="privacy-note">{cloudModel ? "برای پاسخ، پرسش و گزیده‌های مرتبط به سرویس ابری تنظیم‌شده فرستاده می‌شوند." : "فایل‌ها در همین محیط محلی پردازش و داده‌های استخراج‌شده در پوشهٔ پروژه ذخیره می‌شوند."} {statusMessage.includes("تحلیل پایه") ? "برای فهم پرسش‌های متنی، مدل زبانی لازم است." : ""}</p>
     </footer>

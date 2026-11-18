@@ -5,6 +5,7 @@ import { executePlan } from "@/server/analysis/engine";
 import { createQueryPlan } from "@/server/analysis/query-plan";
 import { getModelStatus } from "@/server/ai/provider";
 import { sourceRepository } from "@/server/storage/local-store";
+import { assistantInfo } from "@/server/analysis/assistant-info";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,12 +18,18 @@ const seatMapping = z.object({
 const requestSchema = z.object({
   seatMappings: z.record(z.string().uuid(), seatMapping).optional(),
   question: z.string().trim().min(2).max(2_000),
-  sourceIds: z.array(z.string().uuid()).min(1).max(30),
+  sourceIds: z.array(z.string().uuid()).max(30).default([]),
 });
 
 export async function POST(request: Request) {
   try {
     const body = requestSchema.parse(await request.json());
+    const introduction = assistantInfo(body.question);
+    if (introduction) return NextResponse.json({
+      answer: introduction, result: null, plan: { intent: "assistant_info", sourceIds: [] }, sources: [], citations: [],
+      matchedRows: 0, usedModel: false, modelAvailable: false,
+    });
+    if (!body.sourceIds.length) return NextResponse.json({ error: "برای تحلیل، دست‌کم یک فایل را انتخاب کنید." }, { status: 400 });
     const sources = await sourceRepository.getMany(body.sourceIds);
     if (!sources.length) return NextResponse.json({ error: "فایل معتبری برای تحلیل انتخاب نشده است." }, { status: 400 });
     if (sources.length !== new Set(body.sourceIds).size) return NextResponse.json({ error: "یکی از فایل‌های انتخاب‌شده پیدا نشد؛ فهرست منابع را تازه‌سازی کنید." }, { status: 404 });

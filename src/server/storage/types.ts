@@ -30,6 +30,7 @@ export interface QueryFilter {
 
 export interface QueryPlan {
   intent:
+    | "assistant_info"
     | "count"
     | "sum"
     | "average"

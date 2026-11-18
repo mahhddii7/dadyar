@@ -4,6 +4,7 @@ import type { AnalysisResult, Citation, QueryFilter, QueryPlan, SourceFile, Tabl
 import { planSeating } from "./seating";
 import type { SeatMappings } from "@/types/seating";
 import { retrieveDocumentEvidence, retrieveTableEvidence } from "./retrieval";
+import { profileSources } from "./profile";
 
 function normalize(value: unknown) {
   return String(value ?? "").normalize("NFKC").replace(/[\u064A\u0649]/g, "ی").replace(/\u0643/g, "ک").replace(/[\u200c\s\u0640]+/g, "").toLowerCase();
@@ -245,14 +246,7 @@ export function executePlan(question: string, plan: QueryPlan, sources: SourceFi
   }
 
   if (plan.intent === "summarize") {
-    const summary = scopedSources.map((source) => ({
-      file: source.name,
-      kind: source.kind,
-      rowCount: source.rowCount ?? 0,
-      columns: source.columns ?? [],
-      sampleRows: source.rows?.slice(0, 5).map((row) => Object.fromEntries(Object.entries(row).filter(([key]) => !key.startsWith("__")))) ?? [],
-      excerpt: source.text?.slice(0, 1_500) ?? "",
-    }));
+    const summary = profileSources(scopedSources);
     return { plan, answerData: summary, citations: scopedSources.map((source) => sourceCitation(source, sourcesWithRows(source.id), undefined, false)), matchedRows: rows.length };
   }
 
