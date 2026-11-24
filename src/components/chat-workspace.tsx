@@ -29,8 +29,10 @@ export function ChatWorkspace({ sources, selectedIds, statusMessage, cloudModel,
   const [error, setError] = useState("");
   const [modelResponded, setModelResponded] = useState(false);
   const [modelIssue, setModelIssue] = useState("");
+  const [testingModel, setTestingModel] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const requestController = useRef<AbortController | null>(null);
   const selected = sources.filter((source) => selectedIds.includes(source.id));
 
   useEffect(() => {
@@ -40,21 +42,22 @@ export function ChatWorkspace({ sources, selectedIds, statusMessage, cloudModel,
   function submitQuestion(value = question, ids = selectedIds, mappings?: SeatMappings) {
     const clean = value.trim();
     if (!clean || sending) return;
-    if (!ids.length && !/^(?:(?:تو|شما|خودت)\s+)?(?:کی|چه کسی)\s+هستی[؟?!.،\s]*$|^(?:خودت\s+را\s+معرفی\s+کن|خودتو\s+معرفی\s+کن)[؟?!.،\s]*$/u.test(clean.replace(/[يى]/g, "ی"))) {
-      setError("برای شروع، دست‌کم یک فایل را از فهرست منابع انتخاب کنید.");
-      return;
-    }
     setError("");
     setQuestion("");
-    const userMessage: ChatMessageType = { id: crypto.randomUUID(), role: "user", content: clean };
+    const userMessage: ChatMessageType = { id: crypto.randomUUID(), role: "user", content: clean, sourceIds: ids };
     setMessages((current) => [...current, userMessage]);
     setSending(true);
+    const controller = new AbortController();
+    requestController.current = controller;
     void (async () => {
       try {
         const response = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: clean, sourceIds: ids, seatMappings: mappings ?? savedSeatMappings(ids) }),
+          signal: controller.signal,
+          body: JSON.stringify({ question: clean, sourceIds: ids, seatMappings: mappings ?? savedSeatMappings(ids),
+            history: messages.filter(message => message.sourceIds?.length === ids.length && message.sourceIds.every(id => ids.includes(id)))
+              .slice(-8).map(({ role, content, sourceIds }) => ({ role, content: content.slice(0, 4000), sourceIds })) }),
         });
         const payload = await response.json() as ChatResponse & { error?: string };
         if (!response.ok) throw new Error(payload.error || "پاسخ‌گویی انجام نشد.");
@@ -62,9 +65,9 @@ export function ChatWorkspace({ sources, selectedIds, statusMessage, cloudModel,
           setModelIssue(payload.modelIssue ?? "");
           setModelResponded(!payload.modelIssue && payload.usedModel);
         }
-        setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", content: payload.answer, response: payload }]);
+        setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", content: payload.answer, response: payload, sourceIds: ids }]);
       } catch (cause) {
-        setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", content: cause instanceof Error ? cause.message : "پاسخ‌گویی انجام نشد." }]);
+        setMessages((current) => [...current, { id: crypto.randomUUID(), role: "assistant", content: controller.signal.aborted ? "تحلیل متوقف شد." : cause instanceof Error ? cause.message : "پاسخ‌گویی انجام نشد." }]);
       } finally {
         setSending(false);
         textareaRef.current?.focus();
@@ -77,10 +80,21 @@ export function ChatWorkspace({ sources, selectedIds, statusMessage, cloudModel,
     submitQuestion();
   }
 
+  async function testConnection() {
+    setTestingModel(true);
+    try {
+      const response = await fetch("/api/health", { method: "POST" });
+      const payload = await response.json() as { connected: boolean; message: string };
+      setModelResponded(payload.connected);
+      setModelIssue(payload.connected ? "" : payload.message);
+    } catch { setModelResponded(false); setModelIssue("ارتباط با برنامه برقرار نشد."); }
+    finally { setTestingModel(false); }
+  }
+
   return <main className="chat-main">
     <header className="topbar">
       <div className="topbar-title"><span className="topbar-icon"><MessageSquareText size={17} /></span><div><strong>گفت‌وگوی داده‌ای</strong><small>{selected.length.toLocaleString("fa-IR")} منبع انتخاب‌شده</small></div></div>
-      <div className="topbar-right"><span title={modelIssue || statusMessage} className={`connection-pill ${!modelIssue && (modelResponded || statusMessage.includes("آماده")) ? "ready" : ""}`}><i />{modelIssue ? "خطا در پاسخ مدل" : modelResponded ? "مدل پاسخ داد" : statusMessage}</span><button className="mobile-upload" onClick={onUploadClick}><FilePlus2 size={16} /> فایل جدید</button></div>
+      <div className="topbar-right"><button className="connection-test" onClick={() => void testConnection()} disabled={testingModel || sending}>{testingModel ? "بررسی اتصال…" : "تست اتصال مدل"}</button><span title={modelIssue || statusMessage} className={`connection-pill ${!modelIssue && (modelResponded || statusMessage.includes("آماده")) ? "ready" : ""}`}><i />{modelIssue ? "خطا در پاسخ مدل" : modelResponded ? "مدل پاسخ داد" : statusMessage}</span><button className="mobile-upload" onClick={onUploadClick}><FilePlus2 size={16} /> فایل جدید</button></div>
     </header>
 
     <div className="conversation-scroll" ref={scrollRef}>
@@ -96,14 +110,14 @@ export function ChatWorkspace({ sources, selectedIds, statusMessage, cloudModel,
         </button>)}</div>
         {selected.length > 0 && <div className="active-files"><Database size={15} /><span>تحلیل بر اساس</span>{selected.slice(0, 3).map((source) => <b key={source.id}>{source.name}</b>)}{selected.length > 3 && <small>+{selected.length - 3}</small>}</div>}
       </section> : <section className="message-list">{messages.map((message,index) => <ChatMessage busy={sending} onSeatApply={mapping => submitQuestion(messages[index-1]?.content, message.response?.sources.map(s => s.id), mapping)} key={message.id} message={message} onCitation={onCitation} />)}
-        {sending && <div className="thinking-row"><span className="thinking-icon"><LoaderCircle className="spin" size={16} /></span><div><strong>در حال بررسی داده‌ها</strong><small>سؤال به فایل‌های انتخاب‌شده ارجاع داده می‌شود…</small></div></div>}
+        {sending && <div className="thinking-row"><span className="thinking-icon"><LoaderCircle className="spin" size={16} /></span><div><strong>در حال تحلیل فایل‌ها</strong><small>بررسی شواهد و اجرای محاسبات ممکن است چند مرحله طول بکشد.</small></div><button className="icon-button" onClick={() => requestController.current?.abort()}>توقف</button></div>}
       </section>}
     </div>
 
     <footer className="composer-area">
       {!!error && <div className="composer-error">{error}</div>}
       <form className="composer" onSubmit={handleSubmit}>
-        <textarea ref={textareaRef} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); handleSubmit(event as unknown as FormEvent<HTMLFormElement>); } }} placeholder={selected.length ? "سؤالتان را دربارهٔ فایل‌های انتخاب‌شده بنویسید…" : "خودتان را معرفی کنید یا برای تحلیل یک فایل انتخاب کنید"} rows={1} aria-label="متن سؤال" />
+        <textarea ref={textareaRef} maxLength={2000} value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); handleSubmit(event as unknown as FormEvent<HTMLFormElement>); } }} placeholder={selected.length ? "سؤالتان را دربارهٔ فایل‌های انتخاب‌شده بنویسید…" : "دربارهٔ داده‌یار بپرسید؛ برای تحلیل، فایل انتخاب کنید"} rows={1} aria-label="متن سؤال" />
         <div className="composer-bottom"><span>Enter برای ارسال · Shift + Enter برای خط جدید</span><button type="submit" disabled={!question.trim() || sending} aria-label="ارسال سؤال"><ArrowUp size={18} /></button></div>
       </form>
       <p className="privacy-note">{cloudModel ? "برای پاسخ، پرسش و گزیده‌های مرتبط به سرویس ابری تنظیم‌شده فرستاده می‌شوند." : "فایل‌ها در همین محیط محلی پردازش و داده‌های استخراج‌شده در پوشهٔ پروژه ذخیره می‌شوند."} {statusMessage.includes("تحلیل پایه") ? "برای فهم پرسش‌های متنی، مدل زبانی لازم است." : ""}</p>

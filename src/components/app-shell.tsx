@@ -17,6 +17,7 @@ export function AppShell() {
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [notice, setNotice] = useState("");
+  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
   const [previewSource, setPreviewSource] = useState<Source | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -52,11 +53,13 @@ export function AppShell() {
     if (!files.length) return;
     setUploading(true);
     setNotice("");
+    setUploadErrors([]);
     try {
       const form = new FormData();
       Array.from(files).forEach((file) => form.append("files", file));
       const response = await fetch("/api/files", { method: "POST", body: form });
-      const payload = await response.json() as { sources?: Source[]; error?: string };
+      const payload = await response.json() as { sources?: Source[]; error?: string; errors?: Array<{ file: string; message: string }> };
+      setUploadErrors((payload.errors ?? []).map(item => `${item.file}: ${item.message}`));
       if (!response.ok) throw new Error(payload.error || "بارگذاری فایل انجام نشد.");
       const uploadedIds = (payload.sources ?? []).map((source) => source.id);
       setSelectedIds((current) => [...new Set([...current, ...uploadedIds])].slice(0, 30));
@@ -105,7 +108,7 @@ export function AppShell() {
       <button className="new-chat-button" onClick={() => window.location.reload()}><Sparkles size={16} /><span>گفت‌وگوی تازه</span><kbd>⌘ K</kbd></button>
       <div className="sidebar-section-head"><span>منابع داده</span><button onClick={() => inputRef.current?.click()} aria-label="افزودن منبع"><FilePlus2 size={16} /></button></div>
       <div className={`upload-drop ${dragging ? "drag-over" : ""} ${uploading ? "is-uploading" : ""}`} onClick={() => !uploading && inputRef.current?.click()}>
-        <input ref={inputRef} type="file" multiple accept=".xlsx,.xlsm,.csv,.json,.pdf,.docx,.txt,.md" onChange={(event) => event.target.files && void uploadFiles(event.target.files)} />
+        <input ref={inputRef} type="file" multiple accept=".xlsx,.xlsm,.csv,.tsv,.json,.jsonl,.ndjson,.pdf,.docx,.txt,.md,.log,.png,.jpg,.jpeg,.webp" onChange={(event) => event.target.files && void uploadFiles(event.target.files)} />
         <span className="upload-icon">{uploading ? <LoaderCircle className="spin" size={18} /> : <UploadCloud size={18} />}</span>
         <span><strong>{uploading ? "در حال پردازش فایل…" : "فایل‌ها را اینجا رها کنید"}</strong><small>یا برای انتخاب کلیک کنید</small></span>
       </div>
@@ -124,6 +127,7 @@ export function AppShell() {
     </div>
 
     <ChatWorkspace sources={sources} selectedIds={selectedIds} statusMessage={statusMessage} cloudModel={modelStatus?.provider === "openai-compatible" && modelStatus.available} onUploadClick={() => inputRef.current?.click()} onCitation={(id) => void preview(id)} />
+    {uploadErrors.length > 0 && <div className="upload-errors" role="alert"><strong>این فایل‌ها آمادهٔ تحلیل نشدند</strong>{uploadErrors.map((error, index) => <p key={index}>{error}</p>)}<button onClick={() => setUploadErrors([])}>بستن</button></div>}
     {notice && <div className="toast"><span><Check size={15} /></span>{notice}<button onClick={() => setNotice("")} aria-label="بستن"><X size={15} /></button></div>}
     {(previewSource || previewLoading) && <SourcePreview source={previewSource} loading={previewLoading} onClose={() => { setPreviewSource(null); setPreviewLoading(false); }} />}
     {dragging && <div className="global-drop-indicator"><div><ArrowDownToLine size={28} /><strong>فایل‌ها را رها کنید</strong><small>داده‌یار آن‌ها را برای تحلیل آماده می‌کند</small></div></div>}

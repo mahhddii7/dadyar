@@ -18,6 +18,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   response?: ChatResponse;
+  sourceIds?: string[];
 }
 
 export type Source = PublicSource;

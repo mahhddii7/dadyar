@@ -15,9 +15,14 @@ export interface SourceFile {
   sheets?: string[];
   rowCount?: number;
   warnings?: string[];
+  sheetColumns?: Record<string, string[]>;
+  sections?: Array<{ text: string; page?: number; label?: string }>;
+  extraction?: { complete: boolean; method: string; notes?: string[] };
+  hasOriginal?: boolean;
+  contentHash?: string;
 }
 
-export type PublicSource = Omit<SourceFile, "rows" | "text"> & {
+export type PublicSource = Omit<SourceFile, "rows" | "text" | "sections"> & {
   preview?: TableRow[];
   previewText?: string;
 };
@@ -31,6 +36,7 @@ export interface QueryFilter {
 export interface QueryPlan {
   intent:
     | "assistant_info"
+    | "analysis"
     | "count"
     | "sum"
     | "average"
@@ -63,6 +69,7 @@ export interface Citation {
   sheet?: string;
   rowNumber?: number;
   sectionNumber?: number;
+  page?: number;
   matchedRows?: number;
   excerpt?: string;
 }

@@ -12,6 +12,8 @@ export function SourcePreview({ source, loading, onClose }: { source: Source | n
         <div><strong>{source?.name ?? "در حال بارگذاری پیش‌نمایش"}</strong><small>{source?.kind === "table" ? `${(source.rowCount ?? 0).toLocaleString("fa-IR")} ردیف · ${(source.columns ?? []).length} ستون` : "متن استخراج‌شده"}</small></div>
         <button className="icon-button" onClick={onClose} aria-label="بستن"><X size={18} /></button>
       </header>
+      {source?.hasOriginal && <a className="original-download" href={`/api/files/${source.id}?download=1`}>دریافت اصل فایل مرجع</a>}
+      {source?.extraction?.complete === false && <p className="warning-banner">استخراج این فایل کامل یا قابل تأیید نیست؛ جزئیات هشدار را بررسی کنید.</p>}
       {loading ? <div className="preview-loading"><LoaderCircle className="spin" />در حال آماده‌سازی پیش‌نمایش</div> : source?.kind === "table" ? <>
         {source.warnings?.map((warning) => <p className="warning-banner" key={warning}>{warning}</p>)}
         <div className="table-wrap preview-table"><table><thead><tr>{(source.columns ?? []).map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>

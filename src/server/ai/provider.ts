@@ -64,11 +64,16 @@ function httpFailure(status: number) {
 export function modelErrorMessage(error: unknown) {
   if (error instanceof ProviderFailure) return error.message;
   if (error instanceof Error && ["TimeoutError","AbortError"].includes(error.name)) return "زمان پاسخ‌گویی مدل به پایان رسید.";
+  const cause = error instanceof Error ? error.cause as { code?: string } | undefined : undefined;
+  if (["SELF_SIGNED_CERT_IN_CHAIN", "UNABLE_TO_VERIFY_LEAF_SIGNATURE", "DEPTH_ZERO_SELF_SIGNED_CERT", "CERT_HAS_EXPIRED"].includes(cause?.code ?? "")) {
+    return "گواهی TLS سرویس قابل تأیید نیست. گواهی ریشهٔ معتبر سازمان را در Node تنظیم کنید (NODE_EXTRA_CA_CERTS) یا تنظیم اعتماد سیستم را بررسی کنید؛ اعتبارسنجی TLS را خاموش نکنید.";
+  }
   if (error instanceof TypeError) return "ارتباط شبکه با سرویس مدل برقرار نشد. آدرس سرویس و شبکه را بررسی کنید.";
   return "پاسخ سرویس مدل قابل خواندن نبود.";
 }
 
-export async function requestModel(messages: ChatMessage[], jsonMode = false): Promise<string> {
+export async function requestModel(messages: ChatMessage[], jsonMode = false, parentSignal?: AbortSignal): Promise<string> {
+  const signal = AbortSignal.any([AbortSignal.timeout(60_000), ...(parentSignal ? [parentSignal] : [])]);
   const provider = providerName();
   if (provider === "none") throw new ProviderFailure("مدل زبانی غیرفعال است.");
   if (provider === "openai-compatible") {
@@ -79,8 +84,8 @@ export async function requestModel(messages: ChatMessage[], jsonMode = false): P
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.AI_API_KEY}` },
-      body: JSON.stringify({ model, messages }),
-      signal: AbortSignal.timeout(60_000),
+      body: JSON.stringify({ model, messages, ...(jsonMode && process.env.AI_JSON_MODE === "true" ? { response_format: { type: "json_object" } } : {}) }),
+      signal,
     });
     if (!response.ok) throw httpFailure(response.status);
     const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
@@ -100,7 +105,7 @@ export async function requestModel(messages: ChatMessage[], jsonMode = false): P
       ...(jsonMode ? { format: "json" } : {}),
       options: { temperature: 0.1 },
     }),
-    signal: AbortSignal.timeout(60_000),
+    signal,
   });
   if (!response.ok) throw httpFailure(response.status);
   const payload = await response.json() as { message?: { content?: string } };

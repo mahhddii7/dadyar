@@ -5,6 +5,8 @@ import { SeatAnalysis } from "./seat-analysis";
 import type { SeatMappings, SeatReport } from "@/types/seating";
 import { useState } from "react";
 import type { ChatMessage as ChatMessageType } from "@/types/app";
+import type { AnalysisReport } from "@/types/analysis";
+import { AnalysisEvidence } from "./analysis-evidence";
 
 interface MessageProps {
   message: ChatMessageType;
@@ -22,6 +24,7 @@ function cellText(value: unknown) {
 
 const intentLabels: Record<string, string> = {
   assistant_info: "دربارهٔ داده‌یار",
+  analysis: "تحلیل مستند چندمرحله‌ای",
   seat_release: "برنامه واگذاری با کنترل ظرفیت",
   count: "شمارش",
   sum: "جمع",
@@ -123,6 +126,7 @@ export function ChatMessage({ message, onCitation, busy, onSeatApply }: MessageP
       {response && <>
         {response.plan?.intent === "seat_release"
           ? <SeatAnalysis report={response.result as SeatReport} busy={busy} onApply={onSeatApply} />
+          : response.plan?.intent === "analysis" ? <AnalysisEvidence report={response.result as AnalysisReport} />
           : !["table_answer", "summarize", "assistant_info"].includes(response.plan?.intent ?? "") && <ResultView result={response.result} />}
         {response.note && response.answer !== response.note && <p className="message-note">{response.note}</p>}
         {!!response.citations.length && <div className="citation-list"><span>منابع</span>{response.citations.slice(0, 6).map((citation, index) => <button key={`${citation.sourceId}-${citation.rowNumber}-${index}`} onClick={() => onCitation(citation.sourceId)}>
