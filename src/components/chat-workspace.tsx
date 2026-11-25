@@ -82,12 +82,20 @@ export function ChatWorkspace({ sources, selectedIds, statusMessage, cloudModel,
 
   async function testConnection() {
     setTestingModel(true);
+    setModelIssue("");
+    setModelResponded(false);
     try {
-      const response = await fetch("/api/health", { method: "POST" });
-      const payload = await response.json() as { connected: boolean; message: string };
-      setModelResponded(payload.connected);
-      setModelIssue(payload.connected ? "" : payload.message);
-    } catch { setModelResponded(false); setModelIssue("ارتباط با برنامه برقرار نشد."); }
+      const response = await fetch("/api/health", { method: "POST", signal: AbortSignal.timeout(65_000) });
+      const payload = await response.json().catch(() => null) as { connected?: boolean; message?: string } | null;
+      const connected = response.ok && payload?.connected === true;
+      setModelResponded(connected);
+      setModelIssue(connected ? "" : payload?.message || `برنامه پاسخ معتبر به تست اتصال نداد (HTTP ${response.status}). خروجی ترمینال اجرای برنامه را بررسی کنید.`);
+    } catch (cause) {
+      setModelResponded(false);
+      setModelIssue(cause instanceof Error && cause.name === "TimeoutError"
+        ? "تست اتصال پس از ۶۵ ثانیه پاسخ نگرفت. وضعیت سرویس مدل و خروجی ترمینال برنامه را بررسی کنید."
+        : "ارتباط مرورگر با برنامه برقرار نشد. بررسی کنید npm run dev همچنان در حال اجرا باشد.");
+    }
     finally { setTestingModel(false); }
   }
 
@@ -96,6 +104,8 @@ export function ChatWorkspace({ sources, selectedIds, statusMessage, cloudModel,
       <div className="topbar-title"><span className="topbar-icon"><MessageSquareText size={17} /></span><div><strong>گفت‌وگوی داده‌ای</strong><small>{selected.length.toLocaleString("fa-IR")} منبع انتخاب‌شده</small></div></div>
       <div className="topbar-right"><button className="connection-test" onClick={() => void testConnection()} disabled={testingModel || sending}>{testingModel ? "بررسی اتصال…" : "تست اتصال مدل"}</button><span title={modelIssue || statusMessage} className={`connection-pill ${!modelIssue && (modelResponded || statusMessage.includes("آماده")) ? "ready" : ""}`}><i />{modelIssue ? "خطا در پاسخ مدل" : modelResponded ? "مدل پاسخ داد" : statusMessage}</span><button className="mobile-upload" onClick={onUploadClick}><FilePlus2 size={16} /> فایل جدید</button></div>
     </header>
+
+    {!!modelIssue && <div className="model-error-banner" role="alert"><strong>جزئیات خطای مدل</strong><p>{modelIssue}</p></div>}
 
     <div className="conversation-scroll" ref={scrollRef}>
       {!messages.length ? <section className="welcome-panel">

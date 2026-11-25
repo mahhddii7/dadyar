@@ -94,6 +94,8 @@ button:focus-visible, textarea:focus-visible { outline: 3px solid rgba(22,124,10
 .settings-panel code { color: #487a66; }
 
 .chat-main { min-width: 0; flex: 1; display: flex; flex-direction: column; height: 100%; background: #fbfcfb; }
+.model-error-banner { flex-shrink: 0; margin: 12px 18px 0; padding: 12px 15px; border: 1px solid #efd0c8; border-radius: 10px; color: #923d2d; background: #fff5f1; font-size: 12px; line-height: 1.9; overflow-wrap: anywhere; user-select: text; }
+.model-error-banner p { margin: 4px 0 0; white-space: pre-wrap; }
 .topbar { height: 68px; min-height: 68px; display: flex; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid #edf1ee; background: rgba(255,255,255,.87); }
 .topbar-title { display: flex; align-items: center; gap: 10px; }
 .topbar-icon { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #e7eee8; border-radius: 10px; color: #438369; background: #f5faf6; }
