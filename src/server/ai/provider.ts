@@ -1,4 +1,5 @@
 import "server-only";
+import { fetchModel, ProviderFailure } from "./http";
 
 export interface ModelStatus {
   provider: "ollama" | "openai-compatible" | "none";
@@ -50,17 +51,6 @@ export async function getModelStatus(): Promise<ModelStatus> {
   }
 }
 
-class ProviderFailure extends Error {}
-
-function httpFailure(status: number) {
-  const help = status === 401 || status === 403 ? "کلید API و دسترسی به مدل را بررسی کنید."
-    : status === 404 ? "آدرس سرویس و شناسه مدل را بررسی کنید."
-    : status === 429 ? "محدودیت درخواست یا اعتبار سرویس را بررسی کنید."
-    : status >= 500 ? "سرویس مدل در پردازش درخواست خطا داد."
-    : "تنظیمات مدل و سازگاری سرویس با درخواست را بررسی کنید.";
-  return new ProviderFailure(`سرویس مدل کد HTTP ${status} برگرداند. ${help}`);
-}
-
 export function modelErrorMessage(error: unknown) {
   if (error instanceof ProviderFailure) return error.message;
   if (error instanceof Error && ["TimeoutError","AbortError"].includes(error.name)) return "زمان پاسخ‌گویی مدل به پایان رسید.";
@@ -81,13 +71,12 @@ export async function requestModel(messages: ChatMessage[], jsonMode = false, pa
     const baseUrl = (process.env.AI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
     const model = process.env.AI_MODEL?.trim();
     if (!model) throw new ProviderFailure("AI_MODEL تنظیم نشده است؛ نام دقیق مدل را از پنل سرویس‌دهنده وارد کنید.");
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await fetchModel(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.AI_API_KEY}` },
       body: JSON.stringify({ model, messages, ...(jsonMode && process.env.AI_JSON_MODE === "true" ? { response_format: { type: "json_object" } } : {}) }),
       signal,
     });
-    if (!response.ok) throw httpFailure(response.status);
     const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
     const content = payload.choices?.[0]?.message?.content;
     if (typeof content !== "string" || !content.trim()) throw new ProviderFailure("مدل پاسخی برنگرداند.");
@@ -95,7 +84,7 @@ export async function requestModel(messages: ChatMessage[], jsonMode = false, pa
   }
 
   const baseUrl = (process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
-  const response = await fetch(`${baseUrl}/api/chat`, {
+  const response = await fetchModel(`${baseUrl}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -107,7 +96,6 @@ export async function requestModel(messages: ChatMessage[], jsonMode = false, pa
     }),
     signal,
   });
-  if (!response.ok) throw httpFailure(response.status);
   const payload = await response.json() as { message?: { content?: string } };
   if (!payload.message?.content) throw new ProviderFailure("مدل پاسخی برنگرداند.");
   return payload.message.content;

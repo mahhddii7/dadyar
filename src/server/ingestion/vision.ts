@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { modelErrorMessage } from "../ai/provider";
+import { fetchModel } from "../ai/http";
 import { completeText, parseJson, type ParsedUpload } from "./tabular";
 
 const resultSchema = z.object({
@@ -18,7 +19,7 @@ export async function parseImage(buffer: Buffer, mimeType: string): Promise<Pars
   if (buffer.length > 10 * 1024 * 1024) throw new Error("تصویر برای OCR بیش از ۱۰ مگابایت است؛ اندازهٔ آن را کاهش دهید.");
   if (!process.env.AI_API_KEY?.trim()) throw new Error("کلید سرویس OCR تنظیم نشده است.");
   try {
-    const response = await fetch(`${(process.env.AI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "")}/chat/completions`, {
+    const response = await fetchModel(`${(process.env.AI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "")}/chat/completions`, {
       method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.AI_API_KEY}` },
       signal: AbortSignal.timeout(90_000),
       body: JSON.stringify({ model: process.env.AI_VISION_MODEL, messages: [
@@ -26,7 +27,6 @@ export async function parseImage(buffer: Buffer, mimeType: string): Promise<Pars
         { role: "user", content: [{ type: "text", text: "Extract the complete visible content." }, { type: "image_url", image_url: { url: `data:${mimeType};base64,${buffer.toString("base64")}` } }] },
       ] }),
     });
-    if (!response.ok) throw new Error(`سرویس OCR کد HTTP ${response.status} داد؛ کلید، اعتبار و پشتیبانی مدل از تصویر را بررسی کنید.`);
     const payload = await response.json() as { choices?: Array<{ message?: { content?: string }; finish_reason?: string }> };
     const choice = payload.choices?.[0];
     if (choice?.finish_reason === "length") throw new Error("خروجی OCR کامل نشد؛ تصویر را به بخش‌های کوچک‌تر تقسیم کنید.");
